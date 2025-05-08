@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+SQLAlchemy
+mysql-connector-python
+passlib[bcrypt]
+python-jose
+pydantic
+python-multipart
+Pillow
+transformers
+torch
