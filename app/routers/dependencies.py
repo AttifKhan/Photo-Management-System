@@ -1,39 +1,47 @@
-from fastapi import Depends, HTTPException, status
+# Add this to your dependencies module (probably in app/core/deps.py)
+from fastapi import Depends, HTTPException, status, Cookie, Request
 from fastapi.security import OAuth2PasswordBearer
+from typing import Optional
+from jose import JWTError, jwt
 from sqlalchemy.orm import Session
-from jose import JWTError
-
-from app.core.security import decode_access_token
 from app.db.engine import get_db
 from app.db import crud
+from app.core.security import ALGORITHM, SECRET_KEY
 
-# OAuth2 scheme to read token from Authorization header
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
+def get_current_user(
+    request: Request,
+    db: Session = Depends(get_db),
+    token: Optional[str] = Depends(oauth2_scheme),
 ):
-    """
-    Dependency to get the current authenticated user from JWT token.
-    Raises 401 if invalid.
-    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    # Try to get token from cookie if not provided in authorization header
+    if not token:
+        cookie_authorization = request.cookies.get("access_token")
+        if cookie_authorization and cookie_authorization.startswith("Bearer "):
+            token = cookie_authorization.replace("Bearer ", "")
+    
+    if not token:
+        raise credentials_exception
+    
     try:
-        payload = decode_access_token(token)
-        user_id: int = int(payload.get("sub"))
-    except (JWTError, ValueError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    
     user = crud.get_user_by_id(db, user_id)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    if user is None:
+        raise credentials_exception
+    
     return user
 
 async def require_photographer(

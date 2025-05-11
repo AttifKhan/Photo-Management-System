@@ -52,6 +52,7 @@ class Photo(Base):
     comments = relationship("Comment", back_populates="photo", cascade="all, delete-orphan")
     ratings = relationship("Rating", back_populates="photo", cascade="all, delete-orphan")
     tags = relationship("PhotoTag", back_populates="photo", cascade="all, delete-orphan")
+    best_photo = relationship("BestPhotoOfTheDay", back_populates="photo", cascade="all, delete-orphan")
 
 
 class Follow(Base):
@@ -106,11 +107,13 @@ class PhotoTag(Base):
     photo = relationship("Photo", back_populates="tags")
 
 
+
 class BestPhotoOfTheDay(Base):
     __tablename__ = "best_photo_of_the_day"
 
     date = Column(Date, primary_key=True, default=date.today)
     photo_id = Column(Integer, ForeignKey("photos.id"), nullable=False)
-    selected_at = Column(DateTime, default=datetime.utcnow)
+    selected_at = Column(DateTime, default=datetime.now(timezone.utc))
 
-    photo = relationship("Photo")
+    # Update the relationship to link back to Photo
+    photo = relationship("Photo", back_populates="best_photo")

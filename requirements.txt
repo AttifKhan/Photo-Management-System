@@ -1,11 +1,13 @@
-fastapi
+fastapi[standard]
 uvicorn
 SQLAlchemy
-mysql-connector-python
+pymysql
 passlib[bcrypt]
 python-jose
 pydantic
 python-multipart
 Pillow
-transformers
-torch
+langchain
+langchain-core
+langchain-google-genai
+cryptography

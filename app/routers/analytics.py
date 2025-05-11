@@ -10,7 +10,7 @@ from app.db.models import Photo, Follow
 from app.schemas.analytics import AnalyticsOut
 from app.routers.dependencies import get_current_user
 
-router = APIRouter(tags=["analytics"], prefix="/analytics")
+router = APIRouter(tags=["Analytics"], prefix="/analytics")
 
 @router.get("/", response_model=AnalyticsOut)
 async def get_analytics(

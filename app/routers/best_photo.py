@@ -8,7 +8,7 @@ from app.db import crud
 from app.schemas.best_photo import BestPhotoOut
 from app.routers.dependencies import get_current_user
 
-router = APIRouter(tags=["best_photo"])
+router = APIRouter(tags=["Best_photo"])
 
 @router.get("/best-photo-today", response_model=BestPhotoOut)
 async def best_photo_today(
@@ -25,5 +25,15 @@ async def best_photo_today(
         record = crud.calculate_and_store_best_photo(db, target_date)
         if not record:
             raise HTTPException(status_code=404, detail="No photos available for today")
-    photo = record.photo
-    return BestPhotoOut.from_orm(photo, record.date)
+    
+    # Create a class with the expected attributes
+    class RecordAdapter:
+        def __init__(self, photo, date):
+            self.photo = photo
+            self.date = date
+    
+    # Create an adapter with the correct structure
+    adapter = RecordAdapter(photo=record.photo, date=record.date)
+    
+    # Pass the adapter to from_orm
+    return BestPhotoOut.from_orm(adapter)

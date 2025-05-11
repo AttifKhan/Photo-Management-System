@@ -1,14 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-
+from typing import List
 from app.db.engine import get_db
 from app.db import crud
 from app.db.models import User as UserModel, Photo as PhotoModel, Comment as CommentModel
 from app.schemas.admin import AdminActionOut
 from app.schemas.user import UserOut
+from app.schemas.photo import PhotoListOut
+from app.schemas.comment import CommentOut
 from app.routers.dependencies import get_current_user
 
-router = APIRouter(tags=["admin"], prefix="/admin")
+router = APIRouter(tags=["Admin"], prefix="/admin")
 
 # Dependency to ensure admin user
 def require_admin(current_user=Depends(get_current_user)):
@@ -42,14 +44,14 @@ def delete_user(
     db.commit()
     return AdminActionOut(detail=f"User {user_id} deleted")
 
-@router.get("/photos", response_model=list[str])
+@router.get("/photos", response_model=List[PhotoListOut])
 def list_photos(
     db: Session = Depends(get_db),
     admin_user = Depends(require_admin)
 ):
     """List all photo filenames (admin only)."""
     photos = db.query(PhotoModel).all()
-    return [photo.filename for photo in photos]
+    return photos
 
 @router.delete("/photos/{photo_id}", response_model=AdminActionOut)
 def delete_photo(
@@ -65,14 +67,14 @@ def delete_photo(
     db.commit()
     return AdminActionOut(detail=f"Photo {photo_id} deleted")
 
-@router.get("/comments", response_model=list[int])
+@router.get("/comments", response_model=list[CommentOut])
 def list_comments(
     db: Session = Depends(get_db),
     admin_user = Depends(require_admin)
 ):
     """List all comment IDs (admin only)."""
     comments = db.query(CommentModel).all()
-    return [comment.id for comment in comments]
+    return comments
 
 @router.delete("/comments/{comment_id}", response_model=AdminActionOut)
 def delete_comment(

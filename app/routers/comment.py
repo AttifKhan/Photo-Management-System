@@ -9,7 +9,7 @@ from app.db import crud
 from app.schemas.comment import CommentCreate, CommentOut
 from app.routers.dependencies import get_current_user
 
-router = APIRouter(tags=["comment"])
+router = APIRouter(tags=["Comment"])
 
 @router.post("/photos/{photo_id}/comments", response_model=CommentOut, status_code=status.HTTP_201_CREATED)
 def create_comment(photo_id: int, comment_in: CommentCreate, db: Session = Depends(get_db), current_user = Depends(get_current_user)):

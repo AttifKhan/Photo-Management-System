@@ -9,7 +9,7 @@ from app.schemas.search import SearchResult
 from app.schemas.photo import PhotoOut
 from app.routers.dependencies import get_current_user
 
-router = APIRouter(tags=["search"])
+router = APIRouter(tags=["Search"])
 
 @router.get("/search", response_model=SearchResult)
 async def search_photos(

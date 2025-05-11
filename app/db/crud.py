@@ -169,3 +169,70 @@ def calculate_and_store_best_photo(db: Session, target_date: date = date.today()
     if best:
         return set_best_photo_of_day(db, target_date, best.id)
     return None
+
+# These functions should be added to your crud.py file
+
+def get_follow(db: Session, follower_id: int, followee_id: int):
+    """
+    Check if a follow relationship exists between follower and followee.
+    Returns the Follow object if it exists, None otherwise.
+    """
+    return db.query(Follow).filter(
+        Follow.follower_id == follower_id,
+        Follow.followee_id == followee_id
+    ).first()
+
+
+def check_follow_exists(db: Session, follower_id: int, followee_id: int) -> bool:
+    """
+    Check if a follow relationship exists between follower and followee.
+    Returns True if it exists, False otherwise.
+    """
+    follow = get_follow(db, follower_id, followee_id)
+    return follow is not None
+
+
+def follow_user(db: Session, follower_id: int, followee_id: int):
+    """
+    Create a follow relationship between follower and followee.
+    Returns the created Follow object.
+    """
+    follow = Follow(
+        follower_id=follower_id,
+        followee_id=followee_id
+    )
+    db.add(follow)
+    db.commit()
+    db.refresh(follow)
+    return follow
+
+
+def get_followers(db: Session, user_id: int):
+    """
+    Get all users that are following the specified user.
+    Returns a list of user IDs.
+    """
+    followers = db.query(Follow.follower_id).filter(Follow.followee_id == user_id).all()
+    return followers
+
+def is_following(db: Session, follower_id: int, followed_id: int) -> bool:
+    """
+    Check if a user follows another user
+    
+    Args:
+        db: Database session
+        follower_id: ID of the user who might be following
+        followed_id: ID of the user who might be followed
+    
+    Returns:
+        True if follower_id follows followed_id, False otherwise
+    """
+    # Query the follower relationship based on your DB schema
+    # This assumes you have a 'followers' table with follower_id and followee_id columns
+    follow_relationship = db.query(Follow).filter(
+        Follow.follower_id == follower_id,
+        Follow.followee_id == followed_id
+    ).first()
+    
+    # If the relationship exists, the user is following
+    return follow_relationship is not None

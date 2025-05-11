@@ -27,3 +27,7 @@ def suggest_tags(image_path: str, top_k: int = 10) -> list[str]:
 
     # For demo, just random sample
     return random.sample(DEFAULT_TAGS, k=min(top_k, len(DEFAULT_TAGS)))
+
+
+def suggest_captions():
+    pass

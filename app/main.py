@@ -17,6 +17,7 @@ from app.routers import (
     suggestion,
     analytics,
     admin,
+    
 )
 
 # Create all tables if they don't exist
@@ -35,6 +36,7 @@ app.add_middleware(
 
 # Serve uploaded images
 app.mount("/uploads", StaticFiles(directory="app/static/uploads"), name="uploads")
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 # Include all routers
 app.include_router(auth.router)

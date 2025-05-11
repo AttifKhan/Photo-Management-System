@@ -9,7 +9,7 @@ from app.schemas.rating import RatingCreate, RatingOut
 from app.routers.dependencies import get_current_user
 from app.db.models import Photo as PhotoModel
 
-router = APIRouter(tags=["rating"])
+router = APIRouter(tags=["Rating"])
 
 @router.post("/photos/{photo_id}/ratings", response_model=RatingOut, status_code=status.HTTP_201_CREATED)
 def create_rating(

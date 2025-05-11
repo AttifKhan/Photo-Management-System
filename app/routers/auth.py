@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import timedelta
@@ -14,7 +14,7 @@ from app.core.security import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
 )
 
-router = APIRouter(tags=["auth"])
+router = APIRouter(tags=["Auth"])
 
 
 @router.post(
@@ -36,6 +36,7 @@ def register_user(
         email=user_in.email,
         hashed_password=hashed_pw,
         is_photographer=user_in.is_photographer,
+        is_admin=user_in.is_admin,
     )
     return user
 
@@ -43,9 +44,10 @@ def register_user(
 @router.post(
     "/auth/login",
     response_model=Token,
-    summary="Form-based login (OAuth2PasswordRequestForm)"
+    summary="Form-based login with cookies"
 )
 def login_for_access_token(
+    response: Response,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
@@ -66,34 +68,66 @@ def login_for_access_token(
         data={"sub": str(user.id)},
         expires_delta=access_token_expires,
     )
-    return {"access_token": access_token, "token_type": "bearer"}
-
-
-@router.post(
-    "/auth/login-json",
-    response_model=Token,
-    summary="JSON-based login"
-)
-def login_json(
-    credentials: LoginRequest = Body(...),
-    db: Session = Depends(get_db),
-):
-    """
-    Login using a JSON payload:
-      {
-        "email": "user@example.com",
-        "password": "yourpassword"
-      }
-    """
-    user = crud.get_user_by_email(db, credentials.email)
-    if not user or not verify_password(credentials.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-        )
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": str(user.id)},
-        expires_delta=access_token_expires,
+    
+    # Set the token in an HTTP-only cookie
+    response.set_cookie(
+        key="access_token",
+        value=f"Bearer {access_token}",
+        httponly=True,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        expires=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        samesite="lax",
+        secure=True  # Set to False in development environment
     )
+    
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+# @router.post(
+#     "/auth/login-json",
+#     response_model=Token,
+#     summary="JSON-based login with cookies"
+# )
+# def login_json(
+#     response: Response,
+#     credentials: LoginRequest = Body(...),
+#     db: Session = Depends(get_db),
+# ):
+#     """
+#     Login using a JSON payload:
+#       {
+#         "email": "user@example.com",
+#         "password": "yourpassword"
+#       }
+#     """
+#     user = crud.get_user_by_email(db, credentials.email)
+#     if not user or not verify_password(credentials.password, user.hashed_password):
+#         raise HTTPException(
+#             status_code=status.HTTP_401_UNAUTHORIZED,
+#             detail="Incorrect email or password",
+#         )
+#     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+#     access_token = create_access_token(
+#         data={"sub": str(user.id)},
+#         expires_delta=access_token_expires,
+#     )
+    
+    # Set the token in an HTTP-only cookie
+    response.set_cookie(
+        key="access_token",
+        value=f"Bearer {access_token}",
+        httponly=True,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        expires=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        samesite="lax",
+        secure=True  # Set to False in development environment
+    )
+    
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/auth/logout", summary="Log out and clear cookie")
+def logout(response: Response):
+    """Clear the authentication cookie to log the user out"""
+    response.delete_cookie(key="access_token")
+    return {"message": "Successfully logged out"}

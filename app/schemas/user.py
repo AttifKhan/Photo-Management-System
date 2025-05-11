@@ -10,6 +10,7 @@ class UserCreate(BaseModel):
     email:      EmailStr
     password:   str           = Field(..., min_length=6)
     is_photographer: Optional[bool] = False
+    is_admin: Optional[bool] = False
 
 class UserOut(BaseModel):
     model_config: ConfigDict = BaseModelConfig
