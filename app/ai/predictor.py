@@ -1,112 +1,220 @@
+import base64
+from typing import List, Dict, Any, Optional
+from io import BytesIO
+from PIL import Image
 import os
-from typing import List
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.prompts import ChatPromptTemplate
+
 from langchain_core.output_parsers import JsonOutputParser
-from langchain_core.pydantic_v1 import BaseModel, Field
-import json
+from langchain_core.messages import HumanMessage
+from langchain_groq import ChatGroq
+from langchain_core.runnables import RunnablePassthrough
 
-# Define Pydantic models for structured output parsing
-class TagsOutput(BaseModel):
-    tags: List[str] = Field(description="List of relevant tags for the image")
-
-class CaptionOutput(BaseModel):
-    caption: str = Field(description="A descriptive caption for the image")
-
-def suggest_captions(image_path: str) -> str:
+def compress_image(image_path: str, max_size: int = 800, quality: int = 85) -> str:
     """
-    Generate a descriptive caption for an image using Google's Gemini Vision model.
+    Compress an image to reduce token usage while maintaining quality.
     
-    :param image_path: Path to the image file
-    :return: A descriptive caption string
+    Args:
+        image_path: Path to the image file
+        max_size: Maximum dimension (width or height) for the image
+        quality: JPEG quality (1-100)
+        
+    Returns:
+        Base64 encoded string of the compressed image
     """
-    # Initialize the vision model
-    model = ChatGoogleGenerativeAI(
-        model="gemini-pro-vision",
-        convert_system_message_to_human=True,
-        google_api_key=os.environ.get("GOOGLE_API_KEY")
+    with Image.open(image_path) as img:
+        # Convert to RGB if needed (removes alpha channel)
+        if img.mode in ('RGBA', 'LA'):
+            background = Image.new('RGB', img.size, (255, 255, 255))
+            background.paste(img, mask=img.split()[3])
+            img = background
+        elif img.mode != 'RGB':
+            img = img.convert('RGB')
+        
+        # Resize if needed
+        width, height = img.size
+        if max(width, height) > max_size:
+            if width > height:
+                new_width = max_size
+                new_height = int(height * (max_size / width))
+            else:
+                new_height = max_size
+                new_width = int(width * (max_size / height))
+            img = img.resize((new_width, new_height), Image.LANCZOS)
+        
+        # Save as JPEG to BytesIO
+        buffer = BytesIO()
+        img.save(buffer, format="JPEG", quality=quality, optimize=True)
+        buffer.seek(0)
+        
+        # Convert to base64
+        img_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+        
+        return img_base64
+
+def _create_llm_client(model_name: str = "meta-llama/llama-4-scout-17b-16e-instruct", temperature: float = 0.2):
+    """Create and return a Groq LLM client."""
+    # Make sure to have GROQ_API_KEY in environment variables
+    return ChatGroq(
+        model_name=model_name,
+        temperature=temperature,
+        max_tokens=1024,  # Limit response size to avoid unnecessary token usage
+    )
+
+def captions(
+    image_path_or_base64: str, 
+    count: int = 3, 
+    model_name: str = "meta-llama/llama-4-scout-17b-16e-instruct",
+) -> List[str]:
+    """
+    Generate captions for an image using a Groq vision model.
+    
+    Args:
+        image_path_or_base64: Path to image file or base64 encoded image string
+        count: Number of captions to generate
+        model_name: Groq model name to use
+        
+    Returns:
+        List of caption strings
+    """
+    # Check if input is a file path or already base64
+    if os.path.isfile(image_path_or_base64):
+        image_b64 = compress_image(image_path_or_base64)
+    else:
+        # Assume it's already a base64 string
+        image_b64 = image_path_or_base64
+    
+    # Set up output parser to extract captions list
+    output_parser = JsonOutputParser(pydantic_object=type(
+        "CaptionOutput",
+        (),
+        {"__annotations__": {"captions": List[str]}}
+    ))
+    
+    # Create a prompt that's focused just on caption generation
+    prompt = f"""
+    You are an image captioning expert. Analyze the image and provide exactly {count} distinct, creative captions for it.
+    Focus on being descriptive and engaging.
+    
+    Respond ONLY with a JSON object containing the captions in the following format:
+    {{
+        "captions": ["caption 1", "caption 2", "caption 3"]
+    }}
+    
+    Do not include any explanations, introductions, or additional text.
+    """
+    
+    # Create a message with the image
+    message = HumanMessage(
+        content=[
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}
+        ]
     )
     
-    # Load the image
-    with open(image_path, "rb") as f:
-        image_data = f.read()
+    # Create the LLM
+    llm = _create_llm_client(model_name=model_name)
     
-    # Create an efficient prompt template focused on caption generation
-    caption_prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a professional photography caption generator. 
-        Generate ONE concise, descriptive caption for this image. 
-        The caption should be 1-2 sentences maximum.
-        Focus on the main subject, mood, and setting.
-        DO NOT include tags or labels.
-        DO NOT include introductory phrases like 'This image shows' or 'This is a picture of'.
-        DO NOT explain your reasoning."""),
-        ("human", {"content": [
-            {"type": "text", "text": "Generate a caption for this image:"},
-            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}}
-        ]})
-    ])
+    # Run the chain
+    result = llm.invoke([message])
     
-    # Create the output parser
-    parser = JsonOutputParser(pydantic_object=CaptionOutput)
-    
-    # Create the LangChain Expression Language (LCEL) chain
-    chain = caption_prompt | model | parser
-    
+    # Parse the output
     try:
-        # Run the chain
-        response = chain.invoke({})
-        return response.caption
+        parsed_output = output_parser.parse(result.content)
+        return parsed_output["captions"]
     except Exception as e:
-        print(f"Caption generation failed: {e}")
-        return "A photograph."  # Fallback caption
+        print(f"Error parsing output: {e}")
+        # Fallback parsing in case the output isn't perfect JSON
+        import re
+        import json
+        # Try to extract JSON from the response
+        json_match = re.search(r'\{.*\}', result.content, re.DOTALL)
+        if json_match:
+            try:
+                parsed_json = json.loads(json_match.group(0))
+                if "captions" in parsed_json and isinstance(parsed_json["captions"], list):
+                    return parsed_json["captions"][:count]  # Limit to requested count
+            except:
+                pass
+                
+        # If all else fails, just return an empty list
+        return []
 
-
-def suggest_tags(image_path: str, top_k: int = 10) -> List[str]:
+def tags(
+    image_path_or_base64: str, 
+    count: int = 10, 
+    model_name: str = "meta-llama/llama-4-scout-17b-16e-instruct"
+) -> List[str]:
     """
-    Generate relevant tags for an image using Google's Gemini Vision model.
+    Generate tags for an image using a Groq vision model.
     
-    :param image_path: Path to the image file
-    :param top_k: Number of suggestions to return
-    :return: List of suggested tag strings
+    Args:
+        image_path_or_base64: Path to image file or base64 encoded image string
+        count: Number of tags to generate
+        model_name: Groq model name to use
+        
+    Returns:
+        List of tag strings
     """
-    # Initialize the vision model
-    model = ChatGoogleGenerativeAI(
-        model="gemini-pro-vision",
-        convert_system_message_to_human=True,
-        google_api_key=os.environ.get("GOOGLE_API_KEY")
+    # Check if input is a file path or already base64
+    if os.path.isfile(image_path_or_base64):
+        image_b64 = compress_image(image_path_or_base64)
+    else:
+        # Assume it's already a base64 string
+        image_b64 = image_path_or_base64
+    
+    # Set up output parser to extract tags list
+    output_parser = JsonOutputParser(pydantic_object=type(
+        "TagOutput",
+        (),
+        {"__annotations__": {"tags": List[str]}}
+    ))
+    
+    # Create a prompt that's focused just on tag generation
+    prompt = f"""
+    You are a photo tagging specialist. Analyze the image and provide exactly {count} relevant tags.
+    Focus on concrete objects, colors, themes, emotions, and photographic styles present in the image.
+    Each tag should be a single word or short phrase (1-3 words maximum).
+    
+    Respond ONLY with a JSON object containing the tags in the following format:
+    {{
+        "tags": ["tag1", "tag2", "tag3", ...]
+    }}
+    
+    Do not include any explanations, introductions, or additional text.
+    """
+    
+    # Create a message with the image
+    message = HumanMessage(
+        content=[
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}}
+        ]
     )
     
-    # Load the image
-    with open(image_path, "rb") as f:
-        image_data = f.read()
+    # Create the LLM
+    llm = _create_llm_client(model_name=model_name)
     
-    # Create an efficient prompt template focused on tag generation
-    tag_prompt = ChatPromptTemplate.from_messages([
-        ("system", f"""You are a professional photography tag generator.
-        Generate exactly {top_k} relevant tags for this image.
-        Tags should be single words or short phrases (1-3 words maximum).
-        Include tags for subject, style, mood, colors, composition, and technical aspects.
-        Format your response as a JSON object with a single key 'tags' containing an array of strings.
-        DO NOT include explanations or descriptions.
-        DO NOT include numbered lists.
-        DO NOT include any other text beyond the JSON object."""),
-        ("human", {"content": [
-            {"type": "text", "text": "Generate tags for this image:"},
-            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_data}"}}
-        ]})
-    ])
+    # Run the chain
+    result = llm.invoke([message])
     
-    # Create the output parser
-    parser = JsonOutputParser(pydantic_object=TagsOutput)
-    
-    # Create the LCEL chain
-    chain = tag_prompt | model | parser
-    
+    # Parse the output
     try:
-        # Run the chain
-        response = chain.invoke({})
-        return response.tags[:top_k]  # Ensure we don't exceed top_k
+        parsed_output = output_parser.parse(result.content)
+        return parsed_output["tags"]
     except Exception as e:
-        print(f"Tag suggestion failed: {e}")
-        # Fallback tags for demo purposes
-        return ["photography", "image", "photo"]
+        print(f"Error parsing output: {e}")
+        # Fallback parsing in case the output isn't perfect JSON
+        import re
+        import json
+        # Try to extract JSON from the response
+        json_match = re.search(r'\{.*\}', result.content, re.DOTALL)
+        if json_match:
+            try:
+                parsed_json = json.loads(json_match.group(0))
+                if "tags" in parsed_json and isinstance(parsed_json["tags"], list):
+                    return parsed_json["tags"][:count]  # Limit to requested count
+            except:
+                pass
+                
+        # If all else fails, just return an empty list
+        return []

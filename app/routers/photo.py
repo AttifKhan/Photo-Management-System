@@ -1,102 +1,257 @@
 import os
 import shutil
 import json
+import uuid
+import imghdr
+import logging
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status, Form, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from sqlalchemy.orm import Session, joinedload
-
+from typing import Optional, List
 from app.db.engine import get_db
 from app.db import crud
 from app.db.models import Photo as PhotoModel
 from app.schemas.photo import PhotoCreate, PhotoOut, TagSuggestion, PhotoList, ShareLinkOut
 from app.routers.dependencies import get_current_user, require_photographer
-from app.ai.predictor import suggest_tags, suggest_captions
+from app.ai.predictor import captions, tags
 
 router = APIRouter(tags=["Photo"])
 
-# Directory to store uploads
-UPLOAD_DIR = os.getenv("UPLOAD_DIR", "app/static/uploads")
-# Ensure upload directory exists
+# Directory for temporary file uploads
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/tmp/uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @router.post("/photos/upload", response_model=TagSuggestion)
-async def upload_photo_with_caption_and_tags(
+async def upload_photo(
     file: UploadFile = File(...),
+    caption_count: int = 3,
+    tag_count: int = 10, 
     current_user=Depends(require_photographer)
-):
+) -> TagSuggestion:
     """
-    Uploads a photo temporarily, returns an AI-generated caption and top 10 tag suggestions.
+    Upload a photo and get AI-generated caption and tag suggestions.
+    
+    Args:
+        file: Image file upload
+        caption_count: Number of captions to generate
+        tag_count: Number of tags to generate
+        current_user: Authenticated photographer user
+        
+    Returns:
+        TagSuggestion object with lists of captions and tag suggestions
     """
-    # Save the uploaded file to a temporary location
-    temp_path = os.path.join(UPLOAD_DIR, f"temp_{file.filename}")
-    with open(temp_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
+    # Validate file type
+    if not (file.content_type or "").startswith("image/"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must be an image")
+    
+    # Save temporarily
+    filename = f"{uuid.uuid4()}_{file.filename}"
+    path = os.path.join(UPLOAD_DIR, filename)
+    
     try:
-        # Generate caption and tags
-        caption = suggest_captions(temp_path)
-        tags = suggest_tags(temp_path, top_k=10)
-    except Exception:
-        # Clean up and report error
-        os.remove(temp_path)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Caption or tag suggestion failed"
+        # Save the uploaded file
+        with open(path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+        
+        # Verify it's actually an image
+        if not imghdr.what(path):
+            raise HTTPException(status_code=400, detail="Invalid image file")
+        
+        # Generate captions and tags using our utility functions
+        caption_list = captions(path, count=caption_count)
+        tag_list = tags(path, count=tag_count)
+        
+        return TagSuggestion(
+            captions=caption_list,
+            suggestions=tag_list
         )
+    except Exception as e:
+        # Log the error (in a real app)
+        print(f"Error processing image: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error processing image")
+    finally:
+        # Clean up the temporary file
+        try:
+            os.remove(path)
+        except OSError:
+            pass
 
-    # Remove temp file
-    os.remove(temp_path)
+def parse_tags(tags_str: Optional[str]) -> List[str]:
+    """
+    Parse comma-separated tags string into a list of tags.
+    
+    Args:
+        tags_str (Optional[str]): Comma-separated string of tags
+    
+    Returns:
+        List[str]: List of cleaned, unique tags
+    """
+    if not tags_str:
+        return []
+    
+    # Split by comma, strip whitespace, remove empty strings, convert to lowercase
+    tags = [tag.strip().lower() for tag in tags_str.split(',') if tag.strip()]
+    
+    # Remove duplicates while preserving order
+    return list(dict.fromkeys(tags))
 
-    # Return combined response
-    return TagSuggestion(caption=caption, suggestions=tags)
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-@router.post("/photos", response_model=PhotoOut)
+# Ensure this matches your project structure
+UPLOAD_DIR = os.path.join(os.path.dirname(__file__), '..', 'static', 'uploads')
+
+router = APIRouter()
+
+def parse_tags(tags_str: Optional[str]) -> List[str]:
+    """
+    Parse comma-separated tags string into a list of tags.
+    
+    Args:
+        tags_str (Optional[str]): Comma-separated string of tags
+    
+    Returns:
+        List[str]: List of cleaned, unique tags
+    """
+    if not tags_str:
+        return []
+    
+    # Split by comma, strip whitespace, remove empty strings, convert to lowercase
+    tags = [tag.strip().lower() for tag in tags_str.split(',') if tag.strip()]
+    
+    # Remove duplicates while preserving order
+    return list(dict.fromkeys(tags))
+
+def parse_tags(tags_str: Optional[str]) -> List[str]:
+    """
+    Parse comma-separated tags string into a list of tags.
+    
+    Args:
+        tags_str (Optional[str]): Comma-separated string of tags
+    
+    Returns:
+        List[str]: List of cleaned, unique tags
+    """
+    if not tags_str:
+        return []
+    
+    # Split by comma, strip whitespace, remove empty strings, convert to lowercase
+    tags = [tag.strip().lower() for tag in tags_str.split(',') if tag.strip()]
+    
+    # Remove duplicates while preserving order
+    return list(dict.fromkeys(tags))
+
+def generate_unique_filename(original_filename: str) -> str:
+    """
+    Generate a unique filename while preserving the original extension.
+    
+    Args:
+        original_filename (str): The original filename of the uploaded file
+    
+    Returns:
+        str: A unique filename
+    """
+    # Split the original filename into name and extension
+    name, ext = os.path.splitext(original_filename)
+    
+    # Generate a unique identifier
+    unique_id = uuid.uuid4().hex[:8]  # Use first 8 characters of UUID
+    
+    # Sanitize the original filename (remove any non-alphanumeric characters except underscores and hyphens)
+    sanitized_name = ''.join(
+        char for char in name 
+        if char.isalnum() or char in ('-', '_')
+    )
+    
+    # Truncate the sanitized name if it's too long
+    max_name_length = 50
+    sanitized_name = sanitized_name[:max_name_length]
+    
+    # Combine sanitized name, unique ID, and extension
+    unique_filename = f"{sanitized_name}_{unique_id}{ext}"
+    
+    return unique_filename
+
+@router.post("/photos/", response_model=PhotoOut)
 async def create_photo(
+    caption: Optional[str] = Form(None),  # Optional caption
+    tags: Optional[str] = Form(None),  # Comma-separated tags string
     file: UploadFile = File(...),
-    caption: str = Form(""),
-    selected_tags: str = Form(""),
     db: Session = Depends(get_db),
     current_user = Depends(require_photographer)
 ):
     """
-    Final photo creation with selected tags.
-    Saves file locally, creates DB record and tags.
-    """
-    # Handle tags that might be comma-separated or JSON
-    try:
-        # First try to parse as JSON
-        tags_list = json.loads(selected_tags)
-    except json.JSONDecodeError:
-        # If that fails, treat as comma-separated string
-        tags_list = [tag.strip() for tag in selected_tags.split(',') if tag.strip()]
+    Create a new photo with optional caption and tags.
+    Saves file locally and creates DB record.
     
-    # Create the photo file
-    file_path = os.path.join(UPLOAD_DIR, file.filename)
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-
+    Tags should be comma-separated, e.g., "quote, inspirational, black, text, motivation"
+    """
     try:
-        # Create the photo record
+        # Validate file
+        if not file.filename:
+            raise HTTPException(status_code=400, detail="Invalid file")
+
+        # Log current upload directory and ensure it exists
+        logger.info(f"Upload directory: {UPLOAD_DIR}")
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+        # Verify directory is writable
+        if not os.access(UPLOAD_DIR, os.W_OK):
+            logger.error(f"Upload directory is not writable: {UPLOAD_DIR}")
+            raise HTTPException(status_code=500, detail="Server configuration error: Upload directory not writable")
+
+        # Generate a unique filename while preserving original name and extension
+        unique_filename = generate_unique_filename(file.filename)
+        file_path = os.path.join(UPLOAD_DIR, unique_filename)
+        
+        # Log file details
+        logger.info(f"Attempting to save file: {file_path}")
+        
+        # Save the file
+        try:
+            with open(file_path, "wb") as buffer:
+                # Use copyfileobj for efficient file copying
+                shutil.copyfileobj(file.file, buffer)
+            
+            # Verify file was saved
+            if not os.path.exists(file_path):
+                logger.error(f"File was not saved: {file_path}")
+                raise HTTPException(status_code=500, detail="Failed to save uploaded file")
+            
+            logger.info(f"File saved successfully: {file_path}")
+        except PermissionError:
+            logger.error(f"Permission denied when saving file: {file_path}")
+            raise HTTPException(status_code=500, detail="Permission denied when saving file")
+        except Exception as save_error:
+            logger.error(f"Error saving file: {save_error}")
+            raise HTTPException(status_code=500, detail=f"Error saving file: {str(save_error)}")
+
+        # Parse tags
+        selected_tags = parse_tags(tags)
+
+        # Create photo record
         photo = crud.create_photo(
             db,
             user_id=current_user.id,
-            filename=file.filename,
+            filename=unique_filename,  # Use the unique filename
             caption=caption
         )
         
-        # Add the tags
-        if tags_list:
-            crud.add_photo_tags(db, photo.id, tags_list)
-            
+        # Add tags to the photo if any
+        if selected_tags:
+            crud.add_photo_tags(db, photo.id, selected_tags)
+        
+        # Return the photo using the from_orm class method
         return PhotoOut.from_orm(photo)
+    
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
-        # If anything fails during DB operations, clean up the file
-        if os.path.exists(file_path):
-            os.remove(file_path)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create photo: {str(e)}"
-        )
+        # Log unexpected errors
+        logger.error(f"Unexpected error creating photo: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Unexpected error processing photo upload: {str(e)}")
 
 @router.get("/photos/{photo_id}/download")
 async def download_photo(
