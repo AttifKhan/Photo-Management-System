@@ -29,6 +29,10 @@ def register_user(
     # Check if email already exists
     if crud.get_user_by_email(db, user_in.email):
         raise HTTPException(status_code=400, detail="Email already registered")
+    
+    if crud.get_user_by_username(db, user_in.username):
+        raise HTTPException(status_code=400, detail="Username already registered")
+    
     hashed_pw = hash_password(user_in.password)
     user = crud.create_user(
         db,

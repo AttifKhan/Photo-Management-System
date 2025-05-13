@@ -1,4 +1,5 @@
 import pytest
+import pytest_asyncio
 from unittest.mock import MagicMock, patch
 from sqlalchemy import func
 
@@ -7,14 +8,20 @@ from app.schemas.analytics import AnalyticsOut
 
 
 class TestAnalyticsRoutes:
-    @pytest.mark.asyncio  # Add this decorator for async tests
-    @patch("app.routers.analytics.func")
-    async def test_get_analytics(self, mock_func, mock_db, mock_current_user):
+    @pytest_asyncio.fixture
+    async def setup_mocks(self):
+        """Set up common mocks for testing"""
+        # You can add common setup here if needed
+        pass
+
+    @pytest.mark.asyncio  # Now properly recognized with pytest-asyncio installed
+    #@patch("app.routers.analytics.func")
+    async def test_get_analytics(self, mock_db, mock_current_user):
         """Test getting user analytics data"""
         # Setup test data
         user_id = mock_current_user.id
         
-         # Sum downloads
+        # Sum downloads
         mock_downloads_sum = 42
 
         # Configure the mock database queries
@@ -26,8 +33,6 @@ class TestAnalyticsRoutes:
             3,                  # following count
             mock_downloads_sum  # downloads sum
         ]
-        
-       
         
         # Call the endpoint function and await the result
         result = await router.routes[0].endpoint(
@@ -45,7 +50,7 @@ class TestAnalyticsRoutes:
         assert result.total_following == 3
         assert result.total_downloads == mock_downloads_sum
 
-    @pytest.mark.asyncio  # Add this decorator for async tests
+    @pytest.mark.asyncio
     async def test_get_analytics_zero_values(self, mock_db, mock_current_user):
         """Test analytics with zero values"""
         # Setup mocks to return zero values
@@ -68,7 +73,7 @@ class TestAnalyticsRoutes:
         assert result.total_following == 0
         assert result.total_downloads == 0
 
-    @pytest.mark.asyncio  # Add this decorator for async tests
+    @pytest.mark.asyncio
     async def test_get_analytics_with_none_values(self, mock_db, mock_current_user):
         """Test analytics with None values (should handle gracefully)"""
         # Setup mocks to return None values

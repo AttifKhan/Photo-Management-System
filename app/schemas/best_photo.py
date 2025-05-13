@@ -3,9 +3,10 @@ from datetime import date
 from .photo import PhotoOut
 from .base import BaseModelConfig
 
+
 class BestPhotoOut(BaseModel):
     model_config: ConfigDict = BaseModelConfig
-    date:  date
+    date: date
     photo: PhotoOut
 
     @classmethod
@@ -13,5 +14,5 @@ class BestPhotoOut(BaseModel):
         # record has .photo and .date
         return cls(
             date=record.date,
-            photo=PhotoOut.model_validate(record.photo)
+            photo=PhotoOut.from_orm(record.photo)
         )

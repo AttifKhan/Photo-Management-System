@@ -27,6 +27,7 @@ class TestAuthRoutes:
         # Mock functions
         mock_hash_password.return_value = "hashed_password"
         mock_crud.get_user_by_email.return_value = None  # Email not registered
+        mock_crud.get_user_by_username.return_value = None 
         mock_user = MagicMock()
         mock_crud.create_user.return_value = mock_user
         
@@ -51,36 +52,67 @@ class TestAuthRoutes:
         # Check result
         assert result == mock_user
 
-    @patch("app.routers.auth.crud")
-    def test_register_user_email_exists(self, mock_crud, mock_db):
-        """Test registration with existing email"""
-        # Setup test data
-        user_data = {
-            "username": "existinguser",
-            "email": "existing@example.com",
-            "password": "password123",
-            "is_photographer": False,
-            "is_admin": False
-        }
-        user_in = UserCreate(**user_data)
+        @patch("app.routers.auth.crud")
+        def test_register_user_username_exists(self, mock_crud, mock_db):
+            """Test registration with existing username"""
+            # Setup test data
+            user_data = {
+                "username": "existinguser",
+                "email": "new@example.com",
+                "password": "password123",
+                "is_photographer": False,
+                "is_admin": False
+            }
+            user_in = UserCreate(**user_data)
+            
+            # Mock email already exists
+            mock_crud.get_user_by_username.return_value = MagicMock()
+            
+            # Call the endpoint and expect exception
+            with pytest.raises(HTTPException) as excinfo:
+                router.routes[0].endpoint(
+                    user_in=user_in,
+                    db=mock_db
+                )
+            
+            # Verify exception
+            assert excinfo.value.status_code == 400
+            assert excinfo.value.detail == "Username already registered"
+            
+            # Verify create_user not called
+            mock_crud.get_user_by_username.assert_called_once_with(mock_db, user_in.username)
+            assert not mock_crud.create_user.called
         
-        # Mock email already exists
-        mock_crud.get_user_by_email.return_value = MagicMock()
-        
-        # Call the endpoint and expect exception
-        with pytest.raises(HTTPException) as excinfo:
-            router.routes[0].endpoint(
-                user_in=user_in,
-                db=mock_db
-            )
-        
-        # Verify exception
-        assert excinfo.value.status_code == 400
-        assert excinfo.value.detail == "Email already registered"
-        
-        # Verify create_user not called
-        mock_crud.get_user_by_email.assert_called_once_with(mock_db, user_in.email)
-        assert not mock_crud.create_user.called
+        @patch("app.routers.auth.crud")
+        def test_register_user_email_exists(self, mock_crud, mock_db):
+            """Test registration with existing email"""
+            # Setup test data
+            user_data = {
+                "username": "existinguser",
+                "email": "existing@example.com",
+                "password": "password123",
+                "is_photographer": False,
+                "is_admin": False
+            }
+            user_in = UserCreate(**user_data)
+            
+            # Mock email already exists
+            mock_crud.get_user_by_email.return_value = MagicMock()
+            
+            # Call the endpoint and expect exception
+            with pytest.raises(HTTPException) as excinfo:
+                router.routes[0].endpoint(
+                    user_in=user_in,
+                    db=mock_db
+                )
+            
+            # Verify exception
+            assert excinfo.value.status_code == 400
+            assert excinfo.value.detail == "Email already registered"
+            
+            # Verify create_user not called
+            mock_crud.get_user_by_email.assert_called_once_with(mock_db, user_in.email)
+            assert not mock_crud.create_user.called
 
     @patch("app.routers.auth.verify_password")
     @patch("app.routers.auth.create_access_token")

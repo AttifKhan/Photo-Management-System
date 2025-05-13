@@ -20,8 +20,8 @@ class TestAdminDependency:
 
 
 class TestAdminRoutes:
-    @patch("app.routers.admin.crud")
-    def test_list_users(self, mock_crud, mock_db, mock_admin_user):
+
+    def test_list_users(self, mock_db, mock_admin_user):
         """Test listing all users"""
         mock_users = [MagicMock(spec=User) for _ in range(3)]
         mock_db.query.return_value.all.return_value = mock_users
@@ -85,8 +85,8 @@ class TestAdminRoutes:
         assert not mock_db.delete.called
         assert not mock_db.commit.called
 
-    @patch("app.routers.admin.crud")
-    def test_list_photos(self, mock_crud, mock_db, mock_admin_user):
+
+    def test_list_photos(self, mock_db, mock_admin_user):
         """Test listing all photos"""
         mock_photos = [MagicMock(spec=Photo) for _ in range(3)]
         mock_db.query.return_value.all.return_value = mock_photos
@@ -150,8 +150,8 @@ class TestAdminRoutes:
         assert not mock_db.delete.called
         assert not mock_db.commit.called
 
-    @patch("app.routers.admin.crud")
-    def test_list_comments(self, mock_crud, mock_db, mock_admin_user):
+
+    def test_list_comments(self, mock_db, mock_admin_user):
         """Test listing all comments"""
         mock_comments = [MagicMock(spec=Comment) for _ in range(3)]
         mock_db.query.return_value.all.return_value = mock_comments
@@ -198,8 +198,8 @@ class TestAdminRoutes:
         # Check result
         assert result.detail == f"Comment {comment_id} deleted"
 
-    @patch("app.routers.admin.crud")
-    def test_delete_comment_not_found(self, mock_crud, mock_db, mock_admin_user):
+
+    def test_delete_comment_not_found(self, mock_db, mock_admin_user):
         """Test deleting a non-existent comment"""
         comment_id = 999
         # Simulate that the comment is not found

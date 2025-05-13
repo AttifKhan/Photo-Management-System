@@ -54,9 +54,9 @@ def follow_photographer(
     
     # Create follow relationship
     follow = crud.follow_user(db, current_user.id, photographer_id)
-    return FollowOut.from_orm(follow)
+    return FollowOut.model_validate(follow)
 
-@router.delete("/follow/{photographer_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/unfollow/{photographer_id}", status_code=status.HTTP_204_NO_CONTENT)
 def unfollow_photographer(
     photographer_id: int,
     db: Session = Depends(get_db),

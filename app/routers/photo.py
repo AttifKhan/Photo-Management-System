@@ -12,6 +12,7 @@ from app.db.engine import get_db
 from app.db import crud
 from app.db.models import Photo as PhotoModel
 from app.schemas.photo import PhotoCreate, PhotoOut, TagSuggestion, PhotoList, ShareLinkOut
+from app.db.models import Photo, User, Comment, Rating, PhotoTag
 from app.routers.dependencies import get_current_user, require_photographer
 from app.ai.predictor import captions, tags
 
@@ -76,24 +77,7 @@ async def upload_photo(
         except OSError:
             pass
 
-def parse_tags(tags_str: Optional[str]) -> List[str]:
-    """
-    Parse comma-separated tags string into a list of tags.
-    
-    Args:
-        tags_str (Optional[str]): Comma-separated string of tags
-    
-    Returns:
-        List[str]: List of cleaned, unique tags
-    """
-    if not tags_str:
-        return []
-    
-    # Split by comma, strip whitespace, remove empty strings, convert to lowercase
-    tags = [tag.strip().lower() for tag in tags_str.split(',') if tag.strip()]
-    
-    # Remove duplicates while preserving order
-    return list(dict.fromkeys(tags))
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -102,26 +86,7 @@ logger = logging.getLogger(__name__)
 # Ensure this matches your project structure
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), '..', 'static', 'uploads')
 
-router = APIRouter()
 
-def parse_tags(tags_str: Optional[str]) -> List[str]:
-    """
-    Parse comma-separated tags string into a list of tags.
-    
-    Args:
-        tags_str (Optional[str]): Comma-separated string of tags
-    
-    Returns:
-        List[str]: List of cleaned, unique tags
-    """
-    if not tags_str:
-        return []
-    
-    # Split by comma, strip whitespace, remove empty strings, convert to lowercase
-    tags = [tag.strip().lower() for tag in tags_str.split(',') if tag.strip()]
-    
-    # Remove duplicates while preserving order
-    return list(dict.fromkeys(tags))
 
 def parse_tags(tags_str: Optional[str]) -> List[str]:
     """
@@ -205,9 +170,6 @@ async def create_photo(
         unique_filename = generate_unique_filename(file.filename)
         file_path = os.path.join(UPLOAD_DIR, unique_filename)
         
-        # Log file details
-        logger.info(f"Attempting to save file: {file_path}")
-        
         # Save the file
         try:
             with open(file_path, "wb") as buffer:
@@ -216,15 +178,11 @@ async def create_photo(
             
             # Verify file was saved
             if not os.path.exists(file_path):
-                logger.error(f"File was not saved: {file_path}")
                 raise HTTPException(status_code=500, detail="Failed to save uploaded file")
             
-            logger.info(f"File saved successfully: {file_path}")
         except PermissionError:
-            logger.error(f"Permission denied when saving file: {file_path}")
             raise HTTPException(status_code=500, detail="Permission denied when saving file")
         except Exception as save_error:
-            logger.error(f"Error saving file: {save_error}")
             raise HTTPException(status_code=500, detail=f"Error saving file: {str(save_error)}")
 
         # Parse tags
@@ -241,7 +199,7 @@ async def create_photo(
         # Add tags to the photo if any
         if selected_tags:
             crud.add_photo_tags(db, photo.id, selected_tags)
-        
+        print(PhotoOut.from_orm(photo))
         # Return the photo using the from_orm class method
         return PhotoOut.from_orm(photo)
     
@@ -249,8 +207,6 @@ async def create_photo(
         # Re-raise HTTP exceptions
         raise
     except Exception as e:
-        # Log unexpected errors
-        logger.error(f"Unexpected error creating photo: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Unexpected error processing photo upload: {str(e)}")
 
 @router.get("/photos/{photo_id}/download")
@@ -277,9 +233,6 @@ async def download_photo(
         filename=photo.filename
     )
 
-
-from sqlalchemy.orm import joinedload
-from app.db.models import Photo, User, Comment, Rating, PhotoTag
 
 @router.get("/photos/feed", response_model=PhotoList)
 async def get_feed(
@@ -349,29 +302,3 @@ def get_share_link(
     
     return ShareLinkOut(share_url=share_url)
 
-# # Share: Return basic HTML page
-# @router.get("/{photo_id}/share", response_class=HTMLResponse)
-# def share_photo_page(
-#     photo_id: int,
-#     request: Request,
-#     db: Session = Depends(get_db)
-# ):
-#     photo = crud.get_photo(db, photo_id)
-#     if not photo:
-#         raise HTTPException(status_code=404, detail="Photo not found")
-
-#     image_url = request.url_for("static", path=f"uploads/{photo.filename}")
-#     tags = ", ".join([t.tag_text for t in photo.tags])
-
-#     html = f"""
-#     <html>
-#       <head><title>Shared Photo</title></head>
-#       <body>
-#         <h1>{photo.caption or 'Photo'}</h1>
-#         <img src=\"{image_url}\" alt=\"photo\" style=\"max-width:90%;\" />
-#         <p><strong>Tags:</strong> {tags}</p>
-#         <p><em>Uploaded at {photo.upload_time}</em></p>
-#       </body>
-#     </html>
-#     """
-#     return HTMLResponse(content=html)

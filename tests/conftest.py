@@ -33,6 +33,7 @@ from app.db.models import Base
 from app.db.models import User as UserModel
 from app.routers.dependencies import get_current_user
 from app.db.models import User, Photo, Comment, Rating, Follow, PhotoTag, BestPhotoOfTheDay
+from app.core.security import create_access_token, hash_password
 
 import pytest
 from fastapi.testclient import TestClient
@@ -44,6 +45,14 @@ from typing import Generator, Any, Dict
 from unittest.mock import MagicMock, patch
 from datetime import datetime, timedelta
 
+
+pytest_plugins = ['pytest_asyncio']
+
+asyncio_mode = "strict"
+
+def pytest_configure(config):
+    config.option.asyncio_mode = "auto"
+    
 
 # Use in-memory SQLite for testing
 TEST_SQLALCHEMY_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "mysql+pymysql://root:Code%407338677189@localhost/test_photoshare")
@@ -204,6 +213,8 @@ def mock_admin_user() -> MagicMock:
 def mock_db() -> MagicMock:
     """Mock the database session"""
     return MagicMock()
+
+
 
 # Create fixtures for test data and mocked responses
 @pytest.fixture
