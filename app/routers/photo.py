@@ -301,4 +301,3 @@ def get_share_link(
     share_url = str(url_obj)
     
     return ShareLinkOut(share_url=share_url)
-

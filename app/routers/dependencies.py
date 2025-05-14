@@ -21,7 +21,6 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     
-    # Try to get token from cookie if not provided in authorization header
     if not token:
         cookie_authorization = request.cookies.get("access_token")
         if cookie_authorization and cookie_authorization.startswith("Bearer "):

@@ -55,7 +55,7 @@ def pytest_configure(config):
     
 
 # Use in-memory SQLite for testing
-TEST_SQLALCHEMY_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "mysql+pymysql://root:Code%407338677189@localhost/test_photoshare")
+TEST_SQLALCHEMY_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "mysql+pymysql://root:attif@localhost/test_photoshare")
 
 # Create test engine
 engine = create_engine(TEST_SQLALCHEMY_DATABASE_URL)

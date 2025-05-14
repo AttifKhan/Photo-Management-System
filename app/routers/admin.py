@@ -84,7 +84,6 @@ def delete_comment(
 ):
     """Delete a comment."""
     comment = crud.get_comments_by_photo(db, comment_id)
-    # Actually fetch single comment
     comment_obj = db.query(CommentModel).filter(CommentModel.id == comment_id).first()
     if not comment_obj:
         raise HTTPException(status_code=404, detail="Comment not found")

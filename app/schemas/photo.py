@@ -93,13 +93,3 @@ class PhotoList(BaseModel):
     skip:  int
     limit: int
 
-# Define the BaseModelConfig (assuming it exists in your project)
-# If not, you would need to define it or adapt this part
-# BaseModelConfig = ConfigDict(
-#     json_schema_extra={"example": {"caption": "A serene mountain lake at sunset", "suggestions": ["nature", "landscape", "sunset", "mountains", "reflection", "water", "calm", "serene", "outdoors", "scenic"]}}
-# )
-
-# class TagSuggestion(BaseModel):
-#     model_config: ConfigDict = BaseModelConfig
-#     caption: str = Field(..., description="AI-generated caption for the photo")
-#     suggestions: List[str] = Field(..., description="AI-suggested tags")

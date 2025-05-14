@@ -12,9 +12,6 @@ from app.schemas.follow import FollowOut, FolloweesResponse, FollowersResponse
 
 router = APIRouter(tags=["Follow"])
 
-# New response models to include counts
-
-
 @router.post("/follow/{photographer_id}", response_model=FollowOut)
 def follow_photographer(
     photographer_id: int,

@@ -20,12 +20,10 @@ async def best_photo_today(
     Get the globally best photo of the current day.
     """
     target_date = date.today()
-    # Ensure calculation is up-to-date
     record = crud.get_best_photo_of_day(db, target_date)
     if not record:
         record = crud.calculate_and_store_best_photo(db, target_date)
         if not record:
             raise HTTPException(status_code=404, detail="No photos available for today")
     
-    # Now we can use BestPhotoOut's from_orm directly since it's fixed to use PhotoOut.from_orm
     return BestPhotoOut.from_orm(record)
