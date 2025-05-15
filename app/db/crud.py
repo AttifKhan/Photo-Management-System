@@ -2,7 +2,10 @@
 from datetime import date
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
-
+import re
+from inflect import engine as inflect_engine
+from sqlalchemy import or_, func
+from typing import List
 from app.db.models import (
     User, Photo, Follow, Comment, Rating, PhotoTag, BestPhotoOfTheDay
 )
@@ -124,20 +127,51 @@ def get_tags_by_photo(db: Session, photo_id: int):
     return db.query(PhotoTag).filter(PhotoTag.photo_id == photo_id).all()
 
 
+p = inflect_engine()
+
+def extract_keywords(sentence: str) -> List[str]:
+    # split on non-word chars, lowercase, drop empties
+    words = re.split(r'\W+', sentence.lower())
+    words = [w for w in words if w]
+    # singularize simple plurals (e.g. "cats"→"cat")
+    return list({ p.singular_noun(w) or w for w in words })
+
+def search_photos_by_sentence(db: Session, sentence: str,
+                              skip: int = 0, limit: int = 20):
+    keys = extract_keywords(sentence)
+    if not keys:
+        return []
+
+    # build a case-insensitive LIKE filter for each keyword
+    filters = [
+        func.lower(PhotoTag.tag_text).like(f"%{kw}%")
+        for kw in keys
+    ]
+
+    # join Photo → PhotoTag, OR together, distinct, paginate
+    return (
+        db.query(Photo)
+          .join(PhotoTag)
+          .filter(or_(*filters))
+          .distinct()
+          .offset(skip)
+          .limit(limit)
+          .all()
+    )
 def search_photos_by_tag(db: Session, query: str, skip: int = 0, limit: int = 100):
     return (
         db.query(Photo)
         .join(PhotoTag)
-        .filter(PhotoTag.tag_text.ilike(f"%{query}%"))
+        .filter(PhotoTag.tag_text.like(f"%{query}%"))
         .offset(skip)
         .limit(limit)
         .all()
     )
 
 
-# ----- Best Photo of the Day CRUD -----
+#Best Photo of the Day CRUD 
 def set_best_photo_of_day(db: Session, target_date: date, photo_id: int):
-    # Upsert best photo record
+
     record = db.query(BestPhotoOfTheDay).filter(BestPhotoOfTheDay.date == target_date).first()
     if record:
         record.photo_id = photo_id
@@ -155,7 +189,6 @@ def get_best_photo_of_day(db: Session, target_date: date):
 
 
 def calculate_and_store_best_photo(db: Session, target_date: date = date.today()):
-    # Compute score for today's photos
     photos = db.query(Photo).filter(Photo.upload_date == target_date).all()
     best = None
     best_score = -1
@@ -172,7 +205,7 @@ def calculate_and_store_best_photo(db: Session, target_date: date = date.today()
         return set_best_photo_of_day(db, target_date, best.id)
     return None
 
-# These functions should be added to your crud.py file
+
 
 def get_follow(db: Session, follower_id: int, followee_id: int):
     """
@@ -229,12 +262,10 @@ def is_following(db: Session, follower_id: int, followed_id: int) -> bool:
     Returns:
         True if follower_id follows followed_id, False otherwise
     """
-    # Query the follower relationship based on your DB schema
-    # This assumes you have a 'followers' table with follower_id and followee_id columns
+
     follow_relationship = db.query(Follow).filter(
         Follow.follower_id == follower_id,
         Follow.followee_id == followed_id
     ).first()
     
-    # If the relationship exists, the user is following
     return follow_relationship is not None

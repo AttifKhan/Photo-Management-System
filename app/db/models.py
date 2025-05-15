@@ -115,5 +115,4 @@ class BestPhotoOfTheDay(Base):
     photo_id = Column(Integer, ForeignKey("photos.id"), nullable=False)
     selected_at = Column(DateTime, default=datetime.now(timezone.utc))
 
-    # Update the relationship to link back to Photo
     photo = relationship("Photo", back_populates="best_photo")

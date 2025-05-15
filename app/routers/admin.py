@@ -8,18 +8,9 @@ from app.schemas.admin import AdminActionOut
 from app.schemas.user import UserOut
 from app.schemas.photo import PhotoListOut
 from app.schemas.comment import CommentOut
-from app.routers.dependencies import get_current_user
+from app.routers.dependencies import require_admin
 
 router = APIRouter(tags=["Admin"], prefix="/admin")
-
-# Dependency to ensure admin user
-def require_admin(current_user=Depends(get_current_user)):
-    if not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin privileges required"
-        )
-    return current_user
 
 @router.get("/users", response_model=list[UserOut])
 def list_users(

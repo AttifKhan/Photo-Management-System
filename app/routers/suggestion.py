@@ -30,7 +30,7 @@ def get_photographer_suggestions(
 
     The results exclude photographers the user already follows.
     """
-    # Get IDs of photographers the user already follows
+    
     already_following = db.query(crud.Follow.followee_id).filter(
         crud.Follow.follower_id == current_user.id
     ).subquery()
@@ -68,23 +68,19 @@ def get_photographer_suggestions(
     ).limit(limit*2).all()
 
     # Strategy 3: Recently active photographers with quality content
-    # Check if Photo model exists before using it
     recent_photographers = []
     if hasattr(models, 'Photo'):
-        # Fix: Use a safe way to check for likes_count to avoid errors in tests
         try:
-            # Try using the actual likes_count if it exists
             recent_photographers = base_query.join(
                 models.Photo, models.Photo.user_id == models.User.id
             ).filter(
-                models.Photo.likes_count > 10  # Assuming you track likes
+                models.Photo.download_count > 10  
             ).group_by(
                 models.User.id
             ).order_by(
                 desc(func.max(models.Photo.created_at))
             ).limit(limit*2).all()
         except (AttributeError, TypeError):
-            # If likes_count doesn't exist or can't be compared, just get recent photos
             recent_photographers = base_query.join(
                 models.Photo, models.Photo.user_id == models.User.id
             ).group_by(
@@ -143,5 +139,4 @@ def get_photographer_suggestions(
         reverse=True
     )[:limit]
     
-    # Convert to UserOut schema
     return [UserOut.model_validate(item["user"]) for item in sorted_suggestions]

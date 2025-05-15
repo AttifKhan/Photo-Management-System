@@ -54,7 +54,6 @@ def list_ratings(
     Get all ratings for a photo.
     Only the photographer who posted the photo or users who follow that photographer can view ratings.
     """
-    # Ensure photo exists
     photo = crud.get_photo(db, photo_id)
     if not photo:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Photo not found")

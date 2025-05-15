@@ -1,5 +1,3 @@
-# app/main.py
-
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,12 +18,10 @@ from app.routers import (
     
 )
 
-# Create all tables if they don't exist
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Photo Management App")
 
-# Optional: configure CORS for your frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[os.getenv("FRONTEND_URL", "*")],
@@ -34,11 +30,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve uploaded images
 app.mount("/uploads", StaticFiles(directory="app/static/uploads"), name="uploads")
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-# Include all routers
 app.include_router(auth.router)
 app.include_router(photo.router)
 app.include_router(follow.router)

@@ -4,7 +4,6 @@ from datetime import datetime
 from .base import BaseModelConfig
 
 class TagSuggestion(BaseModel):
-    """Response model for photo upload endpoint"""
     captions: List[str]
     suggestions: List[str]
 
@@ -15,7 +14,6 @@ class PhotoCreate(BaseModel):
 
 
 class ShareLinkOut(BaseModel):
-    # Accept either a string or a URL object
     share_url: str
 
     model_config = ConfigDict(
@@ -26,7 +24,7 @@ class CommentOut(BaseModel):
     model_config: ConfigDict = BaseModelConfig
     id: int
     user_id: int
-    username: str  # Username of commenter
+    username: str  
     content: str
     created_at: datetime
 
@@ -34,7 +32,7 @@ class PhotoOut(BaseModel):
     model_config: ConfigDict = BaseModelConfig
     id: int
     user_id: int
-    username: str  # Username of photographer
+    username: str  
     filename: str
     caption: Optional[str]
     upload_time: datetime
@@ -46,7 +44,6 @@ class PhotoOut(BaseModel):
 
     @classmethod
     def from_orm(cls, photo):
-        # Calculate average rating
         avg_rating = 0.0
         rating_count = 0
         if photo.ratings:
@@ -54,7 +51,6 @@ class PhotoOut(BaseModel):
             rating_count = len(scores)
             avg_rating = sum(scores) / rating_count if rating_count > 0 else 0.0
         
-        # Format comments with username
         comments_list = []
         if photo.comments:
             comments_list = [

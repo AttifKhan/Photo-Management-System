@@ -3,7 +3,6 @@ import shutil
 import json
 import uuid
 import imghdr
-import logging
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status, Form, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from sqlalchemy.orm import Session, joinedload
@@ -78,12 +77,6 @@ async def upload_photo(
             pass
 
 
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Ensure this matches your project structure
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), '..', 'static', 'uploads')
 
 
@@ -140,7 +133,7 @@ def generate_unique_filename(original_filename: str) -> str:
 
 @router.post("/photos/", response_model=PhotoOut)
 async def create_photo(
-    caption: Optional[str] = Form(None),  # Optional caption
+    caption: Optional[str] = Form(None),  
     tags: Optional[str] = Form(None),  # Comma-separated tags string
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -158,12 +151,10 @@ async def create_photo(
             raise HTTPException(status_code=400, detail="Invalid file")
 
         # Log current upload directory and ensure it exists
-        logger.info(f"Upload directory: {UPLOAD_DIR}")
         os.makedirs(UPLOAD_DIR, exist_ok=True)
 
         # Verify directory is writable
         if not os.access(UPLOAD_DIR, os.W_OK):
-            logger.error(f"Upload directory is not writable: {UPLOAD_DIR}")
             raise HTTPException(status_code=500, detail="Server configuration error: Upload directory not writable")
 
         # Generate a unique filename while preserving original name and extension
@@ -200,11 +191,9 @@ async def create_photo(
         if selected_tags:
             crud.add_photo_tags(db, photo.id, selected_tags)
         print(PhotoOut.from_orm(photo))
-        # Return the photo using the from_orm class method
         return PhotoOut.from_orm(photo)
     
     except HTTPException:
-        # Re-raise HTTP exceptions
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error processing photo upload: {str(e)}")
@@ -278,9 +267,8 @@ def get_share_link(
     photo_id: int,
     request: Request,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)  # Changed from get_current_active_user to get_current_user
+    current_user = Depends(get_current_user)  
 ):
-    # Get the photo
     photo = crud.get_photo(db, photo_id)
     if not photo:
         raise HTTPException(status_code=404, detail="Photo not found")
@@ -297,7 +285,7 @@ def get_share_link(
         )
     
     # Convert the URL object to a string
-    url_obj = request.url_for("static", path=f"uploads/{photo.filename}")
+    url_obj = request.url_for("uploads", path=photo.filename)
     share_url = str(url_obj)
     
     return ShareLinkOut(share_url=share_url)

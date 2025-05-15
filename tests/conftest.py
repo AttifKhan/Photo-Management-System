@@ -1,17 +1,4 @@
-# import pytest
-# from fastapi.testclient import TestClient
-# from sqlalchemy import create_engine
-# from sqlalchemy.orm import sessionmaker
-# from sqlalchemy.pool import StaticPool
 
-# from app.main import app
-# from app.db.engine import Base, get_db
-# from app.core.security import create_access_token, hash_password
-# from app.db.models import User, Photo, Comment, Rating, Follow, PhotoTag, Tag, BestPhotoOfTheDay
-# from datetime import datetime, timedelta, date
-# import os
-# import shutil
-# import jwt # type: ignore
 from typing import Generator, Dict, Any
 
 import sys
@@ -26,7 +13,6 @@ from sqlalchemy.pool import StaticPool
 # Add the parent directory to sys.path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Now we can import from app
 from app.main import app
 from app.db.engine import get_db
 from app.db.models import Base
@@ -53,14 +39,10 @@ asyncio_mode = "strict"
 def pytest_configure(config):
     config.option.asyncio_mode = "auto"
     
-
-# Use in-memory SQLite for testing
 TEST_SQLALCHEMY_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "mysql+pymysql://root:attif@localhost/test_photoshare")
 
-# Create test engine
 engine = create_engine(TEST_SQLALCHEMY_DATABASE_URL)
 
-# Create test session factory
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Test user fixtures
@@ -107,13 +89,10 @@ def db() -> Generator:
     Fixture to provide a test database session
     """
     try:
-        # Create all tables
         Base.metadata.create_all(bind=engine)
         
-        # Create a test session
         db = TestingSessionLocal()
         
-        # Setup test users
         test_user = User(**TEST_USER)
         test_photographer = User(**TEST_PHOTOGRAPHER)
         test_admin = User(**TEST_ADMIN)
@@ -123,7 +102,6 @@ def db() -> Generator:
             if not db_user:
                 db.add(user)
         
-        # Add a test photo
         test_photo = Photo(**TEST_PHOTO)
         db_photo = db.query(Photo).filter(Photo.id == test_photo.id).first()
         if not db_photo:
@@ -134,7 +112,6 @@ def db() -> Generator:
         yield db
     finally:
         db.close()
-        # Drop all tables after tests
         Base.metadata.drop_all(bind=engine)
 
 @pytest.fixture
@@ -151,8 +128,7 @@ def client(db) -> Generator:
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:
         yield c
-    
-    # Reset dependency overrides after test
+
     app.dependency_overrides = {}
 
 @pytest.fixture
@@ -213,8 +189,6 @@ def mock_admin_user() -> MagicMock:
 def mock_db() -> MagicMock:
     """Mock the database session"""
     return MagicMock()
-
-
 
 # Create fixtures for test data and mocked responses
 @pytest.fixture

@@ -3,7 +3,8 @@ from typing import List, Dict, Any, Optional
 from io import BytesIO
 from PIL import Image
 import os
-
+import re
+import json
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.messages import HumanMessage
 from langchain_groq import ChatGroq
@@ -52,12 +53,10 @@ def compress_image(image_path: str, max_size: int = 800, quality: int = 85) -> s
         return img_base64
 
 def _create_llm_client(model_name: str = "meta-llama/llama-4-scout-17b-16e-instruct", temperature: float = 0.2):
-    """Create and return a Groq LLM client."""
-    # Make sure to have GROQ_API_KEY in environment variables
     return ChatGroq(
         model_name=model_name,
         temperature=temperature,
-        max_tokens=1024,  # Limit response size to avoid unnecessary token usage
+        max_tokens=1024,  
     )
 
 def captions(
@@ -80,17 +79,14 @@ def captions(
     if os.path.isfile(image_path_or_base64):
         image_b64 = compress_image(image_path_or_base64)
     else:
-        # Assume it's already a base64 string
         image_b64 = image_path_or_base64
     
-    # Set up output parser to extract captions list
     output_parser = JsonOutputParser(pydantic_object=type(
         "CaptionOutput",
         (),
         {"__annotations__": {"captions": List[str]}}
     ))
     
-    # Create a prompt that's focused just on caption generation
     prompt = f"""
     You are an image captioning expert. Analyze the image and provide exactly {count} distinct, creative captions for it.
     Focus on being descriptive and engaging.
@@ -103,7 +99,6 @@ def captions(
     Do not include any explanations, introductions, or additional text.
     """
     
-    # Create a message with the image
     message = HumanMessage(
         content=[
             {"type": "text", "text": prompt},
@@ -111,32 +106,23 @@ def captions(
         ]
     )
     
-    # Create the LLM
     llm = _create_llm_client(model_name=model_name)
-    
-    # Run the chain
     result = llm.invoke([message])
     
-    # Parse the output
     try:
         parsed_output = output_parser.parse(result.content)
         return parsed_output["captions"]
     except Exception as e:
         print(f"Error parsing output: {e}")
-        # Fallback parsing in case the output isn't perfect JSON
-        import re
-        import json
-        # Try to extract JSON from the response
+    
         json_match = re.search(r'\{.*\}', result.content, re.DOTALL)
         if json_match:
             try:
                 parsed_json = json.loads(json_match.group(0))
                 if "captions" in parsed_json and isinstance(parsed_json["captions"], list):
-                    return parsed_json["captions"][:count]  # Limit to requested count
+                    return parsed_json["captions"][:count] 
             except:
                 pass
-                
-        # If all else fails, just return an empty list
         return []
 
 def tags(
@@ -155,21 +141,17 @@ def tags(
     Returns:
         List of tag strings
     """
-    # Check if input is a file path or already base64
     if os.path.isfile(image_path_or_base64):
         image_b64 = compress_image(image_path_or_base64)
     else:
-        # Assume it's already a base64 string
         image_b64 = image_path_or_base64
     
-    # Set up output parser to extract tags list
     output_parser = JsonOutputParser(pydantic_object=type(
         "TagOutput",
         (),
         {"__annotations__": {"tags": List[str]}}
     ))
     
-    # Create a prompt that's focused just on tag generation
     prompt = f"""
     You are a photo tagging specialist. Analyze the image and provide exactly {count} relevant tags.
     Focus on concrete objects, colors, themes, emotions, and photographic styles present in the image.
@@ -183,7 +165,6 @@ def tags(
     Do not include any explanations, introductions, or additional text.
     """
     
-    # Create a message with the image
     message = HumanMessage(
         content=[
             {"type": "text", "text": prompt},
@@ -191,30 +172,22 @@ def tags(
         ]
     )
     
-    # Create the LLM
+
     llm = _create_llm_client(model_name=model_name)
-    
-    # Run the chain
     result = llm.invoke([message])
-    
-    # Parse the output
+
     try:
         parsed_output = output_parser.parse(result.content)
         return parsed_output["tags"]
     except Exception as e:
         print(f"Error parsing output: {e}")
-        # Fallback parsing in case the output isn't perfect JSON
-        import re
-        import json
-        # Try to extract JSON from the response
+
         json_match = re.search(r'\{.*\}', result.content, re.DOTALL)
         if json_match:
             try:
                 parsed_json = json.loads(json_match.group(0))
                 if "tags" in parsed_json and isinstance(parsed_json["tags"], list):
-                    return parsed_json["tags"][:count]  # Limit to requested count
+                    return parsed_json["tags"][:count]  
             except:
                 pass
-                
-        # If all else fails, just return an empty list
         return []

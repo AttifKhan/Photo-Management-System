@@ -107,5 +107,4 @@ class TestSearchRoutes:
             assert result.skip == skip
             assert result.limit == limit
             
-            # Verify the crud method was called with correct parameters
-            # (This would normally be done using mock assertions)
+            
