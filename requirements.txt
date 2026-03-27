@@ -13,4 +13,4 @@ langchain-groq
 cryptography
 pytest-asyncio
 inflect
-imghdr
+standard-imghdr
